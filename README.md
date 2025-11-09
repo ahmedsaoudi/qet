@@ -1,5 +1,7 @@
 # qet - A Meta Package Manager
 
+> **Warning:** This project is in a very early stage of development. It is not recommended for use on critical systems. Please use it with caution and preferably on virtual machines or other non-essential systems.
+
 `qet` is a command-line tool for Linux that acts as a meta package manager. It provides a unified interface to manage packages from different sources, such as system package managers (apt, dnf, pacman), language-specific managers (pip, npm), and other distribution formats (AppImage, Snap, Flatpak).
 
 ## How It Works
