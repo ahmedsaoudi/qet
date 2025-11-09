@@ -4,6 +4,16 @@
 
 `qet` is a command-line tool for Linux that acts as a meta package manager. It provides a unified interface to manage packages from different sources, such as system package managers (apt, dnf, pacman), language-specific managers (pip, npm), and other distribution formats (AppImage, Snap, Flatpak).
 
+## Why Use qet?
+
+`qet` simplifies managing software on your Linux system in several ways:
+
+-   **Unified Interface:** Use a single, consistent command (`qet add`, `qet remove`) for all your applications, whether they come from system repositories, language package managers, or standalone formats.
+-   **Total Control:** You decide which installation method to use for each application. Prefer `apt` for system tools and `npm` for your development utilities? `qet` lets you define and enforce those choices.
+-   **Effortless Management:** Forget how a specific tool was installed. `qet` keeps track of everything, so you can update or remove any package with a simple command.
+-   **Easy Auditing:** The central manifest gives you a clear overview of every application installed through `qet` and its source, making it simple to audit your system.
+-   **Reproducible Environments:** Use a `Qetfile` to define your entire software setup. Syncing it on a new machine is all it takes to replicate your environment, making it perfect for developers and system administrators.
+
 ## How It Works
 
 `qet` works by maintaining a central manifest of packages you've installed. It reads a database of package definitions that map a single `qet` package name to multiple installation methods across different package managers.
@@ -21,16 +31,6 @@ This allows you to manage your applications and tools with a consistent set of c
 -   **`qet` is not a package manager.** It does not have its own package repository, build system, or distribution infrastructure. It is a meta-manager that sits on top of other package managers.
 -   **`qet` does not replace your system's package manager.** You will still need `apt`, `dnf`, `pacman`, or others to be installed and working. `qet` simply provides a unified interface to them.
 -   **`qet` does not resolve dependencies across different managers.** If you install a package with `npm`, `qet` will not use `apt` to install its system-level dependencies.
-
-## Installation
-
-To install `qet`, you can clone this repository and run the installation script:
-
-```bash
-git clone https://github.com/your-username/qet.git
-cd qet
-sudo ./install.sh
-```
 
 ## Usage Examples
 
