@@ -63,7 +63,7 @@ If a package is available from multiple sources, you can manually specify which 
 
 ```bash
 # Install Visual Studio Code as a Snap package
-qet add @editors/vscode --using snap
+qet add @microsoft/vscode --using snap
 ```
 
 ### Syncing with a Qetfile
@@ -80,11 +80,11 @@ qet_name = "@utils/htop"
 method = "apt"
 
 [[packages]]
-qet_name = "@editors/vscode"
+qet_name = "@microsoft/vscode"
 method = "snap"
 
 [[packages]]
-qet_name = "@dev/nodejs"
+qet_name = "@node/nodejs"
 method = "npm"
 ```
 
