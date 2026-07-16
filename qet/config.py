@@ -38,6 +38,7 @@ DEFAULT_CONF = {
     "exclude": ["snap"],
     "defaults": {
         "appimage_dir": "~/.local/bin",
+        "qetfile_path": "~/.config/qet/Qetfile",
         "require_confirmation_for": ["script"],
         "auto_search": True,
         "auto_fallback": False,
@@ -181,12 +182,18 @@ def get_manager_providers() -> dict:
     return MANAGER_PROVIDERS
 
 
+def get_qetfile_path() -> Path:
+    """Returns the user-configured Qetfile path, with ~ expanded."""
+    conf = get_conf()
+    raw = conf.get("defaults", {}).get("qetfile_path", str(QETFILE_PATH))
+    return Path(raw).expanduser()
+
+
 def get_qetfile() -> Dict:
-    return _load_toml_file(QETFILE_PATH, {"packages": []})
+    return _load_toml_file(get_qetfile_path(), {"packages": []})
 
 
 def save_qetfile(data: Dict):
     from . import utils
 
-    utils.atomic_write(QETFILE_PATH, toml.dumps(data))
-
+    utils.atomic_write(get_qetfile_path(), toml.dumps(data))
