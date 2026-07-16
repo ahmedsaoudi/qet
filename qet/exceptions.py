@@ -24,3 +24,11 @@ class ExecutionError(QetError):
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
+
+class AllMethodsFailedError(QetError):
+    """Raised when every candidate method for a package has been tried and failed."""
+    def __init__(self, qet_name: str, failures: list):
+        # failures: list of (method_name, returncode, stderr) tuples
+        super().__init__(f"All installation methods failed for '{qet_name}'.")
+        self.qet_name = qet_name
+        self.failures = failures  # [(method, returncode, stderr), ...]

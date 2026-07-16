@@ -8,7 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.prompt import Confirm
 from . import commands
-from .exceptions import QetError, ExecutionError
+from .exceptions import QetError, ExecutionError, AllMethodsFailedError
 
 console = Console()
 
@@ -52,21 +52,6 @@ def run():
         "qet_name", help="The canonical qet name of the package to remove."
     )
 
-    # `qet upgrade`
-    p_upgrade = subparsers.add_parser(
-        "upgrade", help="Upgrades one or all packages."
-    )
-    group = p_upgrade.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "qet_name",
-        nargs="?",
-        help="The canonical qet name of the package to upgrade.",
-    )
-    group.add_argument(
-        "--all",
-        action="store_true",
-        help="Upgrade all packages managed by qet.",
-    )
 
     # `qet update`
     p_update = subparsers.add_parser(
@@ -133,23 +118,35 @@ def run():
                     else:
                         console.print("[yellow]Installation cancelled.[/yellow]")
                         sys.exit(0)
-                        
-            # Pre-flight method override
-            args.method = method_to_use
-            
-            require_confirm = conf.get("defaults", {}).get("require_confirmation_for", [])
-            if method_to_use in require_confirm and not args.yes:
-                console.print(f"\n[bold yellow]Security Warning:[/bold yellow] '{args.qet_name}' uses the [bold red]'{method_to_use}'[/bold red] method which executes an external script.")
-                if not Confirm.ask("Do you want to proceed with this installation?"):
-                    console.print("[yellow]Installation cancelled.[/yellow]")
-                    sys.exit(0)
+
+            # Do NOT pin args.method here — let add_package iterate all candidates.
+            # Pass a confirm_callback so security prompts fire per-candidate inside
+            # the fallback loop, not just for the first resolved method.
+            skip_confirm = args.yes
 
             with console.status(f"[bold cyan]Initializing...[/bold cyan]", spinner="dots") as status:
                 def update_status(msg):
                     status.update(f"[bold cyan]{msg}[/bold cyan]")
-                
-                entry = commands.add_package(args.qet_name, args.method, status_callback=update_status)
+
+                def do_confirm(method_name):
+                    if skip_confirm:
+                        return True
+                    status.stop()
+                    console.print(f"\n[bold yellow]Security Warning:[/bold yellow] '{args.qet_name}' will be installed using [bold red]'{method_name}'[/bold red] which executes an external script.")
+                    result = Confirm.ask("Do you want to proceed?")
+                    if result:
+                        status.start()
+                    return result
+
+                entry = commands.add_package(
+                    args.qet_name,
+                    args.method,  # None unless user passed --using
+                    status_callback=update_status,
+                    confirm_callback=do_confirm,
+                )
             console.print(f"[bold green]Successfully installed[/bold green] [bold]{args.qet_name}[/bold] using [cyan]{entry['method']}[/cyan].")
+
+
             
         elif args.command == "remove":
             with console.status(f"[bold red]Initializing...[/bold red]", spinner="dots") as status:
@@ -280,10 +277,19 @@ def run():
             
         elif args.command == "sync":
             console.print("[yellow]The 'sync' command is being restructured and is temporarily disabled.[/yellow]")
+
             
-        elif args.command in ["update", "upgrade"]:
-            console.print(f"[yellow]The '{args.command}' command is not yet implemented.[/yellow]")
-            
+    except AllMethodsFailedError as e:
+        console.print(f"\n[bold red]All installation methods failed for '{e.qet_name}':[/bold red]\n")
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Method", style="magenta", no_wrap=True)
+        table.add_column("Reason", style="yellow")
+        for method, detail in e.failures:
+            # Extract the most useful line from the error (last non-empty line of stderr)
+            reason = detail.strip().splitlines()[-1].strip() if detail else "Unknown error"
+            table.add_row(method, reason)
+        console.print(table)
+        sys.exit(1)
     except ExecutionError as e:
         console.print(f"\n[bold red]Execution Error:[/bold red] {e}")
         if e.stderr:

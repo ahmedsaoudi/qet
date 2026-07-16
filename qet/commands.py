@@ -10,11 +10,12 @@ from .exceptions import (
     PackageNotFoundError,
     MethodNotAvailableError,
     ExecutionError,
+    AllMethodsFailedError,
 )
 
 
-def resolve_method(qet_name: str, method_override: str = None) -> str:
-    """Resolves the method to use for a package based on definitions and config."""
+def resolve_method_candidates(qet_name: str, method_override: str = None) -> List[str]:
+    """Returns all viable methods for a package in priority order."""
     conf = config.get_conf()
     definitions = config.get_definitions()
     package_def = definitions.get(qet_name)
@@ -23,37 +24,51 @@ def resolve_method(qet_name: str, method_override: str = None) -> str:
             f"Package '{qet_name}' not found in definitions database."
         )
 
-    method_to_use = None
     if method_override:
         if method_override not in package_def:
             raise MethodNotAvailableError(
                 f"Method '{method_override}' is not available for '{qet_name}'."
             )
-        method_to_use = method_override
-    else:
-        for method_name in conf.get("priority", []):
-            if method_name in conf.get("exclude", []):
-                continue
-            if method_name in package_def:
-                method_to_use = method_name
-                break
+        return [method_override]  # --using pins to exactly one method, no fallback
 
-    if not method_to_use:
+    candidates = [
+        m for m in conf.get("priority", [])
+        if m not in conf.get("exclude", []) and m in package_def
+    ]
+
+    if not candidates:
         raise MethodNotAvailableError(
             f"Could not find a suitable installation method for '{qet_name}'."
         )
 
-    return method_to_use
+    return candidates
+
+
+def resolve_method(qet_name: str, method_override: str = None) -> str:
+    """Resolves the first viable method for a package. Used for pre-flight checks."""
+    return resolve_method_candidates(qet_name, method_override)[0]
 
 
 def add_package(
-    qet_name: str, method_override: str = None, status_callback=None
+    qet_name: str, method_override: str = None, status_callback=None, confirm_callback=None
 ) -> Dict[str, Any]:
     """Handles the logic for adding a package. Returns the manifest entry on success."""
 
     def status(msg):
         if status_callback:
             status_callback(msg)
+
+    def needs_confirm(method_name: str) -> bool:
+        conf = config.get_conf()
+        return method_name in conf.get("defaults", {}).get("require_confirmation_for", [])
+
+    def confirmed(method_name: str) -> bool:
+        """Returns True if we may proceed. Calls confirm_callback if needed."""
+        if not needs_confirm(method_name):
+            return True
+        if confirm_callback is None:
+            return True  # Non-interactive mode: allow
+        return confirm_callback(method_name)
 
     status(f"Resolving package '{qet_name}'...")
     conf = config.get_conf()
@@ -65,65 +80,79 @@ def add_package(
         raise QetError(f"Package '{qet_name}' is already installed.")
 
     package_def = definitions.get(qet_name)
-    method_to_use = resolve_method(qet_name, method_override)
+    candidates = resolve_method_candidates(qet_name, method_override)
 
-    method_info = package_def[method_to_use]
-    context = {**method_info}
-    manifest_entry = {
-        "qet_name": qet_name,
-        "method": method_to_use,
-        **method_info,
-    }
+    last_error = None
+    for method_to_use in candidates:
+        method_info = package_def[method_to_use]
+        context = {**method_info}
+        manifest_entry = {"qet_name": qet_name, "method": method_to_use, **method_info}
 
-    if method_to_use in ["appimage", "deb", "rpm"]:
-        if method_to_use == "appimage":
-            dest_dir = Path(
-                conf["defaults"].get("appimage_dir", "~/.local/bin")
-            ).expanduser()
-            filename = qet_name.split("/")[-1] + ".AppImage"
-            destination_path = dest_dir / filename
-            manifest_entry["appimage_path"] = str(destination_path)
-        else:
-            dest_dir = Path("/tmp/qet_downloads")
-            filename = qet_name.split("/")[-1] + f".{method_to_use}"
-            destination_path = dest_dir / filename
+        if method_to_use in ["appimage", "deb", "rpm"]:
+            if method_to_use == "appimage":
+                dest_dir = Path(
+                    conf["defaults"].get("appimage_dir", "~/.local/bin")
+                ).expanduser()
+                filename = qet_name.split("/")[-1] + ".AppImage"
+                destination_path = dest_dir / filename
+                manifest_entry["appimage_path"] = str(destination_path)
+            else:
+                dest_dir = Path("/tmp/qet_downloads")
+                filename = qet_name.split("/")[-1] + f".{method_to_use}"
+                destination_path = dest_dir / filename
 
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        context["destination_path"] = str(destination_path)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            context["destination_path"] = str(destination_path)
 
-    status(f"Executing installation using '{method_to_use}'...")
-    try:
-        executor.execute(method_to_use, "add", conf, methods, context)
-    except ExecutionError as e:
+        status(f"Trying '{method_to_use}'...")
+
+        if not confirmed(method_to_use):
+            status(f"Skipping '{method_to_use}' (confirmation declined)...")
+            continue
+
+        try:
+            executor.execute(method_to_use, "add", conf, methods, context)
+        except ExecutionError as e:
+            _log_event("install", qet_name, "failed", method=method_to_use, details=str(e))
+            last_error = e
+            if len(candidates) > 1:
+                status(f"'{method_to_use}' failed (exit {e.returncode}), trying next method...")
+            continue  # try next candidate
+
+        # Success
+        status("Logging installation...")
+        manifest_entry["install_date"] = datetime.datetime.now(
+            datetime.timezone.utc
+        ).isoformat()
         _log_event(
-            "install", qet_name, "failed", method=method_to_use, details=str(e)
+            "install", qet_name, "success",
+            method=method_to_use,
+            details=context.get("destination_path") or context.get("package_name"),
         )
-        raise
 
-    status("Logging installation...")
-    manifest_entry["install_date"] = datetime.datetime.now(
-        datetime.timezone.utc
-    ).isoformat()
-    _log_event(
-        "install",
-        qet_name,
-        "success",
-        method=method_to_use,
-        details=context.get("destination_path") or context.get("package_name"),
-    )
+        status("Syncing Qetfile...")
+        qetfile_data = config.get_qetfile()
+        if not any(
+            p["qet_name"] == qet_name for p in qetfile_data.get("packages", [])
+        ):
+            qetfile_data.setdefault("packages", []).append(
+                {"qet_name": qet_name, "method": method_to_use}
+            )
+            config.save_qetfile(qetfile_data)
 
-    status("Syncing Qetfile...")
-    # Auto-update global Qetfile
-    qetfile_data = config.get_qetfile()
-    if not any(
-        p["qet_name"] == qet_name for p in qetfile_data.get("packages", [])
-    ):
-        qetfile_data.setdefault("packages", []).append(
-            {"qet_name": qet_name, "method": method_to_use}
-        )
-        config.save_qetfile(qetfile_data)
+        return manifest_entry
 
-    return manifest_entry
+    # All candidates exhausted — collect per-method details and raise structured error
+    failures = []
+    logs = config.get_install_logs().get("events", [])
+    for candidate in candidates:
+        for ev in reversed(logs):
+            if ev.get("qet_name") == qet_name and ev.get("method") == candidate and ev.get("action") == "install" and ev.get("status") == "failed":
+                failures.append((candidate, ev.get("details", "Unknown error")))
+                break
+        else:
+            failures.append((candidate, "Skipped (confirmation declined)"))
+    raise AllMethodsFailedError(qet_name, failures)
 
 
 def remove_package(qet_name: str, status_callback=None) -> None:
