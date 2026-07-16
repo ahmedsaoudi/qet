@@ -106,7 +106,7 @@ def add_package(
 
         status(f"Trying '{method_to_use}'...")
 
-        if not confirmed(method_to_use):
+        if not confirmed(method_to_use, context):
             status(f"Skipping '{method_to_use}' (confirmation declined)...")
             continue
 

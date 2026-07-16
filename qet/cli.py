@@ -208,7 +208,7 @@ def run():
                 def update_status(msg):
                     status.update(f"[bold cyan]{msg}[/bold cyan]")
 
-                def do_confirm(method_name):
+                def do_confirm(method_name, context):
                     if skip_confirm:
                         return True
                     status.stop()
@@ -374,7 +374,7 @@ def run():
                 def update_status(msg):
                     status.update(f"[bold cyan]{msg}[/bold cyan]")
 
-                def do_confirm(method_name):
+                def do_confirm(method_name, context):
                     if skip_confirm:
                         return True
                     status.stop()
