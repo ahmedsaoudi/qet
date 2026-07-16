@@ -1,0 +1,51 @@
+# Example Package Definitions Database for qet
+# Copy this to ~/.local/share/qet/definitions.toml to use it.
+
+["@ai/lm-studio"]
+appimage = { source_url = "https://releases.lmstudio.ai/linux/latest/LM_Studio.AppImage" }
+flatpak = { package_name = "ai.lmstudio.LMStudio" } # Hypothetical
+
+["@ai/unsloth"]
+pip = { package_name = "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git" }
+script = { source_url = "https://raw.githubusercontent.com/unslothai/unsloth/main/install.sh" }
+
+["@microsoft/vscode"]
+apt = { package_name = "code" }
+dnf = { package_name = "code" }
+snap = { package_name = "code" }
+flatpak = { package_name = "com.visualstudio.code" }
+
+["@utils/ripgrep"]
+apt = { package_name = "ripgrep" }
+dnf = { package_name = "ripgrep" }
+pacman = { package_name = "ripgrep" }
+cargo = { package_name = "ripgrep" }
+brew = { package_name = "ripgrep" }
+
+["@web/nodejs"]
+apt = { package_name = "nodejs" }
+dnf = { package_name = "nodejs" }
+pacman = { package_name = "nodejs" }
+snap = { package_name = "node" }
+script = { source_url = "https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh" }
+
+["@utils/htop"]
+apt = { package_name = "htop" }
+dnf = { package_name = "htop" }
+pacman = { package_name = "htop" }
+brew = { package_name = "htop" }
+
+["@comms/discord"]
+snap = { package_name = "discord" }
+flatpak = { package_name = "com.discordapp.Discord" }
+apt = { package_name = "discord" }
+
+["@browser/brave"]
+apt = { package_name = "brave-browser" }
+snap = { package_name = "brave" }
+flatpak = { package_name = "com.brave.Browser" }
+
+["@python/uv"]
+script = { source_url = "https://astral.sh/uv/install.sh" }
+pip = { package_name = "uv" }
+brew = { package_name = "uv" }

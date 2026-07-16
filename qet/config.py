@@ -12,22 +12,21 @@ SYSTEM_DIR = Path("/usr/share/qet")
 
 # File paths
 CONF_FILE = CONFIG_DIR / "conf.toml"
-MANIFEST_FILE = DATA_DIR / "manifest.toml"
+INSTALL_LOGS_FILE = DATA_DIR / "install-logs.toml"
 DEFINITIONS_FILE = DATA_DIR / "definitions.toml"
 METHODS_FILE = SYSTEM_DIR / "methods.toml"
-QETFILE_PATH = Path.cwd() / "Qetfile"
+QETFILE_PATH = CONFIG_DIR / "Qetfile"
 
 # --- Default Content for Initial Setup ---
 
 DEFAULT_CONF = {
-    "priority": [
-        "npm", "uvx", "pip", "cargo", "apt", "dnf", "pacman", "zypper", 
-        "brew", "snap", "flatpak", "appimage", "script"
-    ],
-    "exclude": [],
+    "priority": ["appimage", "flatpak", "apt", "dnf", "pacman", "pip", "uvx", "cargo", "brew", "deb", "rpm", "script", "snap"],
+    "exclude": ["snap"],
     "defaults": {
-        "download_tool": "curl",
-        "appimage_dir": "~/.local/bin"
+        "appimage_dir": "~/.local/bin",
+        "require_confirmation_for": ["script"],
+        "auto_search": True,
+        "auto_fallback": False
     }
 }
 
@@ -42,19 +41,21 @@ MANAGER_PROVIDERS = {
 }
 
 DEFAULT_METHODS = {
-    "apt": {"add_plumbing": "sudo apt-get install -y {package_name}", "remove_plumbing": "sudo apt-get purge -y {package_name}"},
-    "dnf": {"add_plumbing": "sudo dnf install -y -q {package_name}", "remove_plumbing": "sudo dnf remove -y -q {package_name}"},
-    "pacman": {"add_plumbing": "sudo pacman -S --noconfirm --needed {package_name}", "remove_plumbing": "sudo pacman -Rns --noconfirm {package_name}"},
-    "zypper": {"add_plumbing": "sudo zypper --non-interactive install {package_name}", "remove_plumbing": "sudo zypper --non-interactive remove {package_name}"},
-    "snap": {"add_plumbing": "sudo snap install {package_name}", "remove_plumbing": "sudo snap remove {package_name}"},
-    "flatpak": {"add_plumbing": "flatpak install --user --assumeyes flathub {package_name}", "remove_plumbing": "flatpak uninstall --user --assumeyes {package_name}"},
-    "brew": {"add_plumbing": "brew install {package_name}", "remove_plumbing": "brew uninstall {package_name}"},
-    "npm": {"add_plumbing": "npm install -g {package_name}", "remove_plumbing": "npm uninstall -g {package_name}"},
-    "pip": {"add_plumbing": "python3 -m pip install --upgrade {package_name}", "remove_plumbing": "python3 -m pip uninstall -y {package_name}"},
-    "uvx": {"add_plumbing": "uvx --from-scope system pip install {package_name}", "remove_plumbing": "uvx --from-scope system pip uninstall -y {package_name}"},
-    "cargo": {"add_plumbing": "cargo install {package_name}", "remove_plumbing": "cargo uninstall {package_name}"},
-    "script": {"add_raw": "{download_command}"},
-    "appimage": {"add_plumbing": "{download_command} && chmod +x {destination_path}", "remove_plumbing": "rm -f {destination_path}"}
+    "apt":      {"add_plumbing": "sudo apt-get install -y {package_name}",                     "upgrade_plumbing": "sudo apt-get install --only-upgrade -y {package_name}",  "remove_plumbing": "sudo apt-get purge -y {package_name}"},
+    "dnf":      {"add_plumbing": "sudo dnf install -y -q {package_name}",                      "upgrade_plumbing": "sudo dnf upgrade -y -q {package_name}",                    "remove_plumbing": "sudo dnf remove -y -q {package_name}"},
+    "pacman":   {"add_plumbing": "sudo pacman -S --noconfirm --needed {package_name}",          "upgrade_plumbing": "sudo pacman -S --noconfirm {package_name}",                  "remove_plumbing": "sudo pacman -Rns --noconfirm {package_name}"},
+    "zypper":   {"add_plumbing": "sudo zypper --non-interactive install {package_name}",        "upgrade_plumbing": "sudo zypper --non-interactive update {package_name}",         "remove_plumbing": "sudo zypper --non-interactive remove {package_name}"},
+    "snap":     {"add_plumbing": "sudo snap install {package_name}",                            "upgrade_plumbing": "sudo snap refresh {package_name}",                           "remove_plumbing": "sudo snap remove {package_name}"},
+    "flatpak":  {"add_plumbing": "flatpak install --user --assumeyes flathub {package_name}",  "upgrade_plumbing": "flatpak update --user --assumeyes {package_name}",            "remove_plumbing": "flatpak uninstall --user --assumeyes {package_name}"},
+    "brew":     {"add_plumbing": "brew install {package_name}",                                 "upgrade_plumbing": "brew upgrade {package_name}",                                "remove_plumbing": "brew uninstall {package_name}"},
+    "npm":      {"add_plumbing": "npm install -g {package_name}",                               "upgrade_plumbing": "npm install -g {package_name}",                              "remove_plumbing": "npm uninstall -g {package_name}"},
+    "pip":      {"add_plumbing": "python3 -m pip install --upgrade {package_name}",             "upgrade_plumbing": "python3 -m pip install --upgrade {package_name}",            "remove_plumbing": "python3 -m pip uninstall -y {package_name}"},
+    "uvx":      {"add_plumbing": "uvx --from-scope system pip install {package_name}",          "upgrade_plumbing": "uvx --from-scope system pip install --upgrade {package_name}","remove_plumbing": "uvx --from-scope system pip uninstall -y {package_name}"},
+    "cargo":    {"add_plumbing": "cargo install {package_name}",                                "upgrade_plumbing": "cargo install {package_name}",                               "remove_plumbing": "cargo uninstall {package_name}"},
+    "deb":      {"add_plumbing": "{download_command} && sudo apt-get install -y {destination_path}",  "upgrade_plumbing": "{download_command} && sudo apt-get install -y {destination_path}",  "remove_plumbing": "sudo apt-get purge -y {package_name}"},
+    "rpm":      {"add_plumbing": "{download_command} && sudo dnf install -y {destination_path}",       "upgrade_plumbing": "{download_command} && sudo dnf install -y {destination_path}",       "remove_plumbing": "sudo dnf remove -y {package_name}"},
+    "script":   {"add_raw": "{download_command}",                                               "upgrade_raw": "{download_command}"},
+    "appimage": {"add_plumbing": "{download_command} && chmod +x {destination_path}",           "upgrade_plumbing": "{download_command} && chmod +x {destination_path}",          "remove_plumbing": "rm -f {destination_path}"}
 }
 
 
@@ -72,11 +73,18 @@ def _load_toml_file(path: Path, default_content: Dict = None) -> Dict:
         raise IOError(f"Failed to load or create {path}: {e}")
 
 def get_conf() -> Dict[str, Any]: return _load_toml_file(CONF_FILE, DEFAULT_CONF)
-def get_manifest() -> Dict[str, List[Dict]]: return _load_toml_file(MANIFEST_FILE, {"packages": []})
-def save_manifest(data: Dict[str, List[Dict]]): from . import utils; utils.atomic_write(MANIFEST_FILE, toml.dumps(data))
-def get_definitions() -> Dict: return _load_toml_file(DEFINITIONS_FILE)
+def get_install_logs() -> Dict[str, List[Dict]]: return _load_toml_file(INSTALL_LOGS_FILE, {"packages": []})
+def save_install_logs(data: Dict[str, List[Dict]]): from . import utils; utils.atomic_write(INSTALL_LOGS_FILE, toml.dumps(data))
+def get_definitions() -> Dict:
+    default_defs_path = Path(__file__).parent.parent / "example_definitions.toml"
+    default_content = {}
+    if default_defs_path.exists():
+        with open(default_defs_path, "r") as f:
+            default_content = toml.load(f)
+    return _load_toml_file(DEFINITIONS_FILE, default_content)
 def get_methods() -> Dict: return DEFAULT_METHODS
 def get_manager_providers() -> dict: return MANAGER_PROVIDERS
 def get_qetfile() -> Dict:
-    if not QETFILE_PATH.exists(): raise FileNotFoundError("Qetfile not found in the current directory.")
-    return _load_toml_file(QETFILE_PATH)
+    return _load_toml_file(QETFILE_PATH, {"packages": []})
+def save_qetfile(data: Dict):
+    from . import utils; utils.atomic_write(QETFILE_PATH, toml.dumps(data))

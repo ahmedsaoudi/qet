@@ -26,3 +26,31 @@ def atomic_write(filepath: Path, content: str):
         if tmp_path.exists():
             tmp_path.unlink()
         raise IOError(f"Atomic write to {filepath} failed: {e}")
+
+def check_package_exists(manager: str, package_name: str) -> bool:
+    """Checks if a package exists in a given system package manager."""
+    import subprocess
+    cmd = None
+    if manager == "apt": cmd = ["apt-cache", "show", package_name]
+    elif manager == "dnf": cmd = ["dnf", "info", package_name]
+    elif manager == "pacman": cmd = ["pacman", "-Si", package_name]
+    elif manager == "snap": cmd = ["snap", "info", package_name]
+    elif manager == "flatpak": cmd = ["flatpak", "search", package_name]
+    elif manager == "brew": cmd = ["brew", "info", package_name]
+    elif manager == "pip": cmd = ["python3", "-m", "pip", "index", "versions", package_name]
+    elif manager == "cargo": cmd = ["cargo", "search", package_name, "--limit", "1"]
+    
+    if not cmd: return False
+    
+    try:
+        if not is_command_available(cmd[0]): return False
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if res.returncode == 0:
+            if manager == "flatpak" and "No matches found" in res.stdout:
+                return False
+            if manager == "cargo" and not res.stdout.strip():
+                return False
+            return True
+        return False
+    except Exception:
+        return False
